@@ -1,13 +1,15 @@
 # views.py
-from rest_framework import status, permissions
+from rest_framework import status, permissions as drf_permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.contrib.auth.models import User
+from .permissions import IsModerator, ReadOnlyIfAnonymous
+from django.contrib.auth import authenticate, login as django_login, logout as django_logout
 from django.conf import settings
 from datetime import timedelta
+from drf_yasg.utils import swagger_auto_schema
 import boto3, uuid
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.authtoken.models import Token
@@ -17,13 +19,16 @@ from .serializers import (
     HistoryCheckOrderSerializer,
     HistoryCheckOrderItemSerializer,
     UserRegisterSerializer,
-    UserSerializer
+    UserSerializer,
+    UserLoginSerializer
 )
 import math
 import re
 import math
 import string
 import pymorphy2
+from django.contrib.auth import get_user_model
+User = get_user_model()
 
 morph = pymorphy2.MorphAnalyzer()
 
@@ -82,18 +87,6 @@ def is_person_mentioned(person_name, text, percent_of_trust):
     return points >= required_points
 
 
-def get_fixed_creator():
-    username = 'root'
-    password = 'mydbpass'
-    user, created = User.objects.get_or_create(username=username)
-    if created:
-        user.set_password(password)
-        user.is_superuser = True
-        user.is_staff = True
-        user.save()
-    return user
-
-
 s3_client = boto3.client(
     's3',
     endpoint_url=f"http://{settings.AWS_S3_ENDPOINT_URL}",
@@ -104,6 +97,7 @@ s3_client = boto3.client(
 
 
 class HistoryPersonList(APIView):
+    permission_classes = [ReadOnlyIfAnonymous]
 
     def get(self, request):
         queryset = HistoryPerson.objects.all()
@@ -113,7 +107,10 @@ class HistoryPersonList(APIView):
         serializer = HistoryPersonSerializer(queryset, many=True)
         return Response(serializer.data)
 
+    @swagger_auto_schema(request_body=HistoryPersonSerializer)
     def post(self, request):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return Response({"error": "Только модератор может добавлять исторических личностей"}, status=status.HTTP_403_FORBIDDEN)
         serializer = HistoryPersonSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -121,7 +118,7 @@ class HistoryPersonList(APIView):
 
 
 class HistoryPersonDetail(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [ReadOnlyIfAnonymous]
 
     def get(self, request, pk):
         person = get_object_or_404(HistoryPerson, id=pk, is_active=True)
@@ -130,6 +127,8 @@ class HistoryPersonDetail(APIView):
 
     def put(self, request, pk):
         person = get_object_or_404(HistoryPerson, id=pk, is_active=True)
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return Response({"error": "Только модератор может редактировать"}, status=status.HTTP_403_FORBIDDEN)
         serializer = HistoryPersonSerializer(person, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -137,6 +136,8 @@ class HistoryPersonDetail(APIView):
 
     def delete(self, request, pk):
         person = get_object_or_404(HistoryPerson, id=pk, is_active=True)
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return Response({"error": "Только модератор может удалять"}, status=status.HTTP_403_FORBIDDEN)
         if person.image:
             try:
                 s3_client.delete_object(Bucket=settings.AWS_STORAGE_BUCKET_NAME, Key=person.image)
@@ -149,25 +150,28 @@ class HistoryPersonDetail(APIView):
 
 
 class AddToHistoryCheckOrder(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [drf_permissions.IsAuthenticated]
 
     def post(self, request, pk):
         person = get_object_or_404(HistoryPerson, id=pk, is_active=True)
-        creator = get_fixed_creator()
+        creator = request.user
         historycheck_order, _ = HistoryCheckOrder.objects.get_or_create(
             creator=creator,
             status=HistoryCheckOrder.Status.DRAFT,
         )
-        item, _ = HistoryCheckOrderItem.objects.get_or_create(order=historycheck_order, person=person)
+        item, created = HistoryCheckOrderItem.objects.get_or_create(order=historycheck_order, person=person)
         serializer = HistoryCheckOrderItemSerializer(item)
-        return Response({"order_id": historycheck_order.id, "item": serializer.data})
+        return Response({"order_id": historycheck_order.id, "item": serializer.data},
+                        status=status.HTTP_200_OK if not created else status.HTTP_201_CREATED)
 
 
 class UploadHistoryPersonImage(APIView):
     parser_classes = [MultiPartParser, FormParser]
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [ReadOnlyIfAnonymous]
 
     def post(self, request, pk):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return Response({"error": "Только модератор может загружать изображения"}, status=status.HTTP_403_FORBIDDEN)
         person = get_object_or_404(HistoryPerson, id=pk, is_active=True)
         file_obj = request.data.get('image')
         if not file_obj:
@@ -205,25 +209,35 @@ class UploadHistoryPersonImage(APIView):
         return Response({"image": person.image}, status=status.HTTP_200_OK)
 
 class HistoryCheckOrderBasketIcon(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [drf_permissions.AllowAny]
 
     def get(self, request):
-        creator = get_fixed_creator()
-        historyOrder = HistoryCheckOrder.objects.filter(
-            creator=creator,
-            status=HistoryCheckOrder.Status.DRAFT
-        ).first()
-        count = historyOrder.items.count() if historyOrder else 0
-        return Response({"order_id": historyOrder.id if historyOrder else None, "count": count})
+        if request.user.is_authenticated:
+            order = HistoryCheckOrder.objects.filter(creator=request.user,
+                                                     status=HistoryCheckOrder.Status.DRAFT).first()
+            count = order.items.count() if order else 0
+            return Response({"order_id": order.id if order else None, "count": count})
+        else:
+            return Response({"order_id": None, "count": 0})
 
 
 class HistoryCheckOrderList(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [drf_permissions.IsAuthenticated]
 
     def get(self, request):
-        qs = HistoryCheckOrder.objects.exclude(
-            status__in=[HistoryCheckOrder.Status.DELETED, HistoryCheckOrder.Status.DRAFT]
-        )
+        if request.user.is_staff:
+            qs = HistoryCheckOrder.objects.exclude(status__in=[
+                HistoryCheckOrder.Status.DELETED,
+                HistoryCheckOrder.Status.DRAFT
+            ])
+        else:
+            qs = HistoryCheckOrder.objects.filter(
+                creator=request.user
+            ).exclude(status__in=[
+                HistoryCheckOrder.Status.DELETED,
+                HistoryCheckOrder.Status.DRAFT
+            ])
+
         date_from = request.GET.get('date_from')
         date_to = request.GET.get('date_to')
         status_q = request.GET.get('status')
@@ -238,51 +252,47 @@ class HistoryCheckOrderList(APIView):
 
 
 class HistoryCheckOrderDetailView(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [drf_permissions.IsAuthenticated]
 
     def get(self, request, pk):
-        historyOrder = get_object_or_404(HistoryCheckOrder, id=pk)
-        if historyOrder.status == HistoryCheckOrder.Status.DELETED:
-            return Response({"error": "Заявка не найдена"})
-        serializer = HistoryCheckOrderSerializer(historyOrder)
+        order = get_object_or_404(HistoryCheckOrder, id=pk)
+        if order.status == HistoryCheckOrder.Status.DELETED:
+            return Response({"error": "Заявка не найдена"}, status=status.HTTP_404_NOT_FOUND)
+        if not request.user.is_authenticated or (not request.user.is_staff and order.creator != request.user):
+            return Response({"error": "Нет прав"}, status=status.HTTP_403_FORBIDDEN)
+        serializer = HistoryCheckOrderSerializer(order)
         return Response(serializer.data)
 
 class HistoryCheckOrderUpdate(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [drf_permissions.IsAuthenticated]
 
+    @swagger_auto_schema(request_body=HistoryCheckOrderSerializer)
     def put(self, request, pk):
-        historyOrder = get_object_or_404(HistoryCheckOrder, id=pk)
-        creator = get_fixed_creator()
-        if historyOrder.creator != creator:
+        order = get_object_or_404(HistoryCheckOrder, id=pk)
+        if order.creator != request.user and not request.user.is_staff:
             return Response({"error": "Нет прав"}, status=status.HTTP_403_FORBIDDEN)
 
-        forbidden = {'id', 'creator', 'moderator', 'status', 'created_at', 'formed_at', 'completed_at'}
-        for field, value in request.data.items():
-            if field in forbidden:
-                continue
-            if hasattr(historyOrder, field):
-                setattr(historyOrder, field, value)
-        historyOrder.save()
-        serializer = HistoryCheckOrderSerializer(historyOrder)
+        serializer = HistoryCheckOrderSerializer(order, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
         return Response(serializer.data)
 
 
+
 class HistoryCheckOrderForm(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [drf_permissions.IsAuthenticated]
 
     def put(self, request, pk):
         historyOrder = get_object_or_404(HistoryCheckOrder, id=pk)
-        creator = get_fixed_creator()
-        if historyOrder.creator != creator:
+        if historyOrder.creator != request.user:
             return Response({"error": "Нет прав"}, status=status.HTTP_403_FORBIDDEN)
         if historyOrder.status != HistoryCheckOrder.Status.DRAFT:
             return Response({"error": "Можно формировать только черновик"}, status=status.HTTP_400_BAD_REQUEST)
-
-        required_fields = ['history_text']
+        required_fields = ['drone_weight', 'cargo_weight', 'battery_capacity', 'battery_voltage', 'efficiency',
+                           'battery_remaining']
         for f in required_fields:
             if getattr(historyOrder, f, None) is None:
                 return Response({"error": f"Не заполнено поле {f}"}, status=status.HTTP_400_BAD_REQUEST)
-
         historyOrder.status = HistoryCheckOrder.Status.FORMED
         historyOrder.formed_at = timezone.now()
         historyOrder.save()
@@ -290,7 +300,7 @@ class HistoryCheckOrderForm(APIView):
 
 
 class HistoryCheckOrderComplete(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [IsModerator]
 
     def put(self, request, pk):
         historyOrder = get_object_or_404(HistoryCheckOrder, id=pk)
@@ -303,7 +313,7 @@ class HistoryCheckOrderComplete(APIView):
         if action not in ['complete', 'reject']:
             return Response({"error": "Неверное действие"}, status=status.HTTP_400_BAD_REQUEST)
 
-        creator = get_fixed_creator()
+        moderator = request.user
 
         if action == 'complete':
             for item in historyOrder.items.all():
@@ -339,7 +349,7 @@ class HistoryCheckOrderComplete(APIView):
             delivery_date = timezone.now() + timedelta(days=30)
 
             historyOrder.status = HistoryCheckOrder.Status.COMPLETED
-            historyOrder.moderator = creator
+            historyOrder.moderator = moderator
             historyOrder.completed_at = timezone.now()
             historyOrder.save()
 
@@ -351,97 +361,104 @@ class HistoryCheckOrderComplete(APIView):
 
         elif action == 'reject':
             historyOrder.status = HistoryCheckOrder.Status.REJECTED
-            historyOrder.moderator = creator
+            historyOrder.moderator = moderator
             historyOrder.completed_at = timezone.now()
             historyOrder.save()
             return Response({"status": "ok", "order_status": historyOrder.status}, status=status.HTTP_200_OK)
 
 
 class HistoryCheckOrderDelete(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [drf_permissions.IsAuthenticated]
 
     def delete(self, request, pk):
-        historyOrder = get_object_or_404(HistoryCheckOrder, id=pk)
-        creator = get_fixed_creator()
-        if historyOrder.creator != creator:
+        order = get_object_or_404(HistoryCheckOrder, id=pk)
+        if order.creator != request.user and not request.user.is_staff:
             return Response({"error": "Нет прав"}, status=status.HTTP_403_FORBIDDEN)
-        historyOrder.status = HistoryCheckOrder.Status.DELETED
-        historyOrder.save()
+        order.status = HistoryCheckOrder.Status.DELETED
+        order.save()
         return Response({"status": "ok"}, status=status.HTTP_200_OK)
 
 
 class HistoryCheckOrderItemUpdate(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [drf_permissions.IsAuthenticated]
 
     def put(self, request, pk):
         item = get_object_or_404(HistoryCheckOrderItem, id=pk)
-        creator = get_fixed_creator()
-        if item.order.creator != creator:
+        if item.drone_order.creator != request.user and not request.user.is_staff:
             return Response({"error": "Нет прав"}, status=status.HTTP_403_FORBIDDEN)
-
         serializer = HistoryCheckOrderItemSerializer(item, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
 
 class HistoryCheckOrderItemDelete(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [drf_permissions.IsAuthenticated]
 
     def delete(self, request, pk):
         item = get_object_or_404(HistoryCheckOrderItem, id=pk)
-        creator = get_fixed_creator()
-        if item.order.creator != creator:
+        if item.drone_order.creator != request.user and not request.user.is_staff:
             return Response({"error": "Нет прав"}, status=status.HTTP_403_FORBIDDEN)
         item.delete()
         return Response({"status": "ok"}, status=status.HTTP_200_OK)
 
 
 class UserForHistoryCheckRegister(APIView):
+    permission_classes = [drf_permissions.AllowAny]
+
+    @swagger_auto_schema(request_body=UserRegisterSerializer)
     def post(self, request):
         serializer = UserRegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response({"status": "ok"}, status=status.HTTP_201_CREATED)
-
-
-CURRENT_USER = None
-
+        user = serializer.save()
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response(
+            {"status": "ok", "username": user.username},
+            status=status.HTTP_201_CREATED
+        )
 
 class UserForHistoryCheckLogin(ObtainAuthToken):
-    def post(self, request, *args, **kwargs):
-        global CURRENT_USER
-        serializer = self.serializer_class(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']
-        token, created = Token.objects.get_or_create(user=user)
-        CURRENT_USER = user
-        return Response({"status": "ok"})
+    permission_classes = [drf_permissions.AllowAny]
+
+    @swagger_auto_schema(request_body=UserLoginSerializer)
+    def post(self, request):
+        username = request.data.get('username')
+        password = request.data.get('password')
+        user = authenticate(username=username, password=password)
+        if not user:
+            return Response({"error": "Неверные учетные данные"}, status=status.HTTP_400_BAD_REQUEST)
+        django_login(request, user)
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response(
+            {"status": "ok", "username": user.username, "token": token.key},
+            status=status.HTTP_200_OK
+        )
 
 
 class UserForHistoryCheckDetail(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [drf_permissions.IsAuthenticated]
 
+    @swagger_auto_schema(responses={200: UserSerializer()})
     def get(self, request):
-        global CURRENT_USER
-        if not CURRENT_USER:
-            return Response({"error": "Нет активного пользователя"}, status=401)
-        serializer = UserSerializer(CURRENT_USER)
+        serializer = UserSerializer(request.user)
         return Response(serializer.data)
 
+    @swagger_auto_schema(
+        request_body=UserSerializer,
+        responses={200: UserSerializer()}
+    )
     def put(self, request):
-        global CURRENT_USER
-        if not CURRENT_USER:
-            return Response({"error": "Нет активного пользователя"}, status=401)
-        serializer = UserSerializer(CURRENT_USER, data=request.data, partial=True)
+        serializer = UserSerializer(request.user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
 
 
 class UserForHistoryCheckLogout(APIView):
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [drf_permissions.IsAuthenticated]
 
     def post(self, request):
-        global CURRENT_USER
-        CURRENT_USER = None
-        return Response({"status": "ok"})
+        Token.objects.filter(user=request.user).delete()
+        django_logout(request)
+        response = Response({"status": "ok"})
+        response.delete_cookie("csrftoken")
+        return response

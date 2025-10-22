@@ -1,13 +1,18 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
 from .models import HistoryPerson, HistoryCheckOrder, HistoryCheckOrderItem
-
+from collections import OrderedDict
+from django.contrib.auth.models import User
 
 class HistoryPersonSerializer(serializers.ModelSerializer):
+    image = serializers.SerializerMethodField()
+
     class Meta:
         model = HistoryPerson
         fields = ['id', 'person_name', 'year_from', 'year_to', 'description', 'image', 'is_active']
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'image']
+
+    def get_image(self, obj):
+        return obj.image if obj.image else None
 
 
 class HistoryCheckOrderItemSerializer(serializers.ModelSerializer):
@@ -22,6 +27,9 @@ class HistoryCheckOrderItemSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'person_detail']
 
+    def update(self, instance, validated_data):
+        validated_data.pop('historyperson', None)
+        return super().update(instance, validated_data)
 
 class HistoryCheckOrderSerializer(serializers.ModelSerializer):
     items = HistoryCheckOrderItemSerializer(many=True, read_only=True)
@@ -53,7 +61,6 @@ class HistoryCheckOrderSerializer(serializers.ModelSerializer):
             'completed_at'
         ]
 
-
 class UserRegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
 
@@ -65,8 +72,12 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data)
         return user
 
-
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['username', 'email', 'first_name', 'last_name']
+
+
+class UserLoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField()
