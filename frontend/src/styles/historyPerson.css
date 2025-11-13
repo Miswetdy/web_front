@@ -1,0 +1,94 @@
+@font-face {
+    font-family: 'TTTricks-Regular';
+    src: url('../fonts/TTTricksStencil-Regular.ttf') format("truetype");
+    font-weight: normal;
+    font-style: normal;
+}
+
+.person-card {
+    width: 330px;
+    background: #F7F4F1;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 15px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    font-family: 'TTTricks-Regular';
+    transition: background-color .5s ease, transform .5s;
+}
+
+.person-card:hover{
+    transform: scale(1.01);
+    background:#d4d4d4;
+    animation: fade .5s linear forwards;
+}
+
+.person-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.person-name {
+    font-family: 'TTTricks', sans-serif;
+    font-size: 20px;
+    width: 250px;
+    font-weight: bold;
+    padding: 10px;
+    height: 60px;           /* фиксированная высота */
+    display: flex;          /* выравнивание по центру */
+    align-items: top;
+    justify-content: left;
+}
+
+.expand-btn {
+    background: #d63826;
+    border: none;
+    color: #000;
+    font-size: 18px;
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 50px;
+    margin-right:8px;
+    transition: background 0.3s;
+}
+
+.expand-btn:hover {
+    background: #b71c1c;
+}
+
+.person-card .card-image {
+    margin: 15px 0;
+}
+
+.person-card img {
+    width: 100%;
+    border-radius: 4px;
+}
+
+.person-card .card-years {
+    font-size: 18px;
+    margin-top: 5px;
+}
+
+.person-card .card-years strong {
+    font-weight: bold;
+}
+
+.details-btn {
+    display: inline-block;
+    background: #d63826;
+    color: #000;
+    padding: 6px 14px;
+    border-radius: 16px;
+    text-decoration: none;
+    font-size: 14px;
+    margin-left: 170px;
+    transition: background 0.3s;
+}
+
+.details-btn:hover {
+    background: #b71c1c;
+}
+

@@ -28,6 +28,7 @@ import math
 import string
 import pymorphy2
 from django.contrib.auth import get_user_model
+
 User = get_user_model()
 
 morph = pymorphy2.MorphAnalyzer()
@@ -227,8 +228,8 @@ class HistoryCheckOrderList(APIView):
     def get(self, request):
         if request.user.is_staff:
             qs = HistoryCheckOrder.objects.exclude(status__in=[
-                HistoryCheckOrder.Status.DELETED,
-                HistoryCheckOrder.Status.DRAFT
+                # HistoryCheckOrder.Status.DELETED,
+                # HistoryCheckOrder.Status.DRAFT
             ])
         else:
             qs = HistoryCheckOrder.objects.filter(

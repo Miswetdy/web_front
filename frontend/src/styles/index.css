@@ -1,0 +1,88 @@
+@font-face {
+    font-family: 'TTTricks-Regular';
+    src: url('/src/styles/fonts/TTTricksStencil-Regular.ttf') format("truetype");
+    font-weight: normal;
+    font-style: normal;
+}
+
+.head-container{
+    display: inline;
+    width: 1195px;
+}
+
+.input-container {
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.cards-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    width:1200px
+}
+
+input {
+    border: none;
+    border-bottom: 2px solid #000;
+    outline: none;
+    padding: 5px;
+    flex-grow: 1;
+    font-size: 18px;
+    background-color:#F7F4F1;
+}
+
+.search-button {
+    background-color: #d63826;
+    border: none;
+    border-radius: 10px;
+    width: 40px;
+    height: 40px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    position: absolute;
+    top: -10px;
+    left: 1110px;
+}
+
+.search-icon {
+    width: 24px;
+    height: 24px;
+}
+
+.cart-button {
+    position: relative;
+    display: inline;
+    padding: 10px;
+    cursor: pointer;
+    background: none;
+    border: none;
+    left:1210px;
+    top:-40px;
+}
+
+.cart-button img {
+    width: 60px;
+    height: 60px;
+ }
+
+.cart-counter {
+    position: absolute;
+    top: -15px;
+    right: 3px;
+    background-color: #d63826;
+    color: white;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: #000;
+    font-family: 'TTTricks-Regular'
+}

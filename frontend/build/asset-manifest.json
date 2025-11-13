@@ -1,0 +1,14 @@
+{
+  "files": {
+    "main.css": "/static/css/main.39a8ec96.css",
+    "main.js": "/static/js/main.152143c9.js",
+    "static/media/TTTricksStencil-Regular.ttf": "/static/media/TTTricksStencil-Regular.5e08b8874c458d95dfdc.ttf",
+    "index.html": "/index.html",
+    "main.39a8ec96.css.map": "/static/css/main.39a8ec96.css.map",
+    "main.152143c9.js.map": "/static/js/main.152143c9.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.39a8ec96.css",
+    "static/js/main.152143c9.js"
+  ]
+}

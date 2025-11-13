@@ -1,0 +1,42 @@
+@font-face {
+        font-family: 'TTTricks-Regular';
+        src: local('TTTricks-Regular'),
+        url('/src/styles/fonts/TTTricksStencil-Regular.ttf') format("truetype");
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+body {
+    font-family: "TTTricks-Regular";
+    background-color: #F7F4F1;
+    color: #000000;
+}
+
+input {
+    font-family: "TTTricks-Regular";
+}
+
+header {
+    width: 100%;
+    background-color: #d63826;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px 0;
+}
+
+header img {
+    height: 60px;
+    object-fit: contain;
+}
+
+main {
+    max-width: 1200px;
+    margin: 40px auto;
+    padding: 0 20px;
+}
+

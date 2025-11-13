@@ -1,10 +1,11 @@
 # urls.py
-from django.urls import path, re_path
+from django.urls import path, re_path, include
 from historycheck import views
 from django.contrib import admin
 from rest_framework import permissions as drf_permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+from django.views.generic import TemplateView
 
 schema_view = get_schema_view(
    openapi.Info(
@@ -19,6 +20,8 @@ schema_view = get_schema_view(
 urlpatterns = [
     path("admin/", admin.site.urls),
 
+    path('', TemplateView.as_view(template_name='index.html'), name='start-page'),
+    #path('api/main/', views.HistoryPersonList.as_view(), name='main-page'),
     path('api/persons/', views.HistoryPersonList.as_view(), name='persons-list'),                     # GET список + фильтрация, POST создать
     path('api/persons/<int:pk>/', views.HistoryPersonDetail.as_view(), name='person-detail'),         # GET одна, PUT обновление, DELETE удаление
     path('api/persons/<int:pk>/add_to_order/', views.AddToHistoryCheckOrder.as_view(), name='person-add-to-order'),  # POST добавление в заявку-черновик
