@@ -1,0 +1,153 @@
+@font-face {
+    font-family: 'TTTricks-Regular';
+    src: url('../fonts/TTTricksStencil-Regular.ttf') format("truetype");
+    font-weight: normal;
+    font-style: normal;
+}
+
+.person-card {
+    width: 100%;
+    max-width: 330px;
+    background: #F7F4F1;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 15px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    font-family: 'TTTricks-Regular';
+    transition: background-color .5s ease, transform .5s;
+    box-sizing: border-box;
+}
+
+.person-card:hover{
+    transform: scale(1.01);
+    background:#d4d4d4;
+    animation: fade .5s linear forwards;
+}
+
+.person-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.person-name {
+    font-family: 'TTTricks', sans-serif;
+    font-size: 20px;
+    flex: 1;
+    min-width: 0;
+    font-weight: bold;
+    padding: 10px;
+    min-height: 60px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-start;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.expand-btn {
+    background: #d63826;
+    border: none;
+    color: #000;
+    font-size: 18px;
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+    flex-shrink: 0;
+    transition: background 0.3s;
+}
+
+.expand-btn:hover {
+    background: #b71c1c;
+}
+
+.person-card .card-image {
+    margin: 15px 0;
+}
+
+.person-card img {
+    width: 100%;
+    border-radius: 4px;
+    height: auto;
+}
+
+.person-card .card-years {
+    font-size: 18px;
+    margin-top: 5px;
+    word-wrap: break-word;
+}
+
+.person-card .card-years strong {
+    font-weight: bold;
+}
+
+.details-btn {
+    display: inline-block;
+    background: #d63826;
+    color: #000;
+    padding: 6px 14px;
+    border-radius: 16px;
+    text-decoration: none;
+    font-size: 14px;
+    margin-top: 10px;
+    transition: background 0.3s;
+    width: 100%;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.details-btn:hover {
+    background: #b71c1c;
+}
+
+@media (max-width: 768px) {
+    .person-card {
+        max-width: 100%;
+    }
+
+    .person-name {
+        font-size: 18px;
+        padding: 8px;
+        min-height: 50px;
+    }
+
+    .person-card .card-years {
+        font-size: 16px;
+    }
+
+    .details-btn {
+        font-size: 13px;
+        padding: 5px 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .person-card {
+        padding: 12px;
+    }
+
+    .person-name {
+        font-size: 16px;
+        padding: 6px;
+        min-height: 45px;
+    }
+
+    .expand-btn {
+        width: 28px;
+        height: 28px;
+        font-size: 16px;
+    }
+
+    .person-card .card-years {
+        font-size: 14px;
+    }
+
+    .details-btn {
+        font-size: 12px;
+        padding: 4px 10px;
+    }
+}
+

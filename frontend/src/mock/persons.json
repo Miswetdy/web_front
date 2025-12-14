@@ -1,0 +1,4 @@
+[
+  { "id": 1, "person_name": "Иванов Иван", "year_from": 1850, "year_to": 1900, "description": "Описание Ивана", "image": "/img.png" },
+  { "id": 2, "person_name": "Петров Пётр", "year_from": 1870, "year_to": 1920, "description": "Описание Петра", "image": "/img.png" }
+]
